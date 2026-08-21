@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh Sách Cài Đặt eTax Mobile</title>
+    <!-- Thư viện SheetJS để đọc file Excel trực tiếp trên trình duyệt -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f4f7f6; 
+        }
+        h2 { 
+            text-align: center; 
+            color: #333; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+        input[type="text"] { 
+            width: 100%; 
+            padding: 12px; 
+            margin-bottom: 20px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box; 
+            font-size: 16px;
+        }
+        .table-container {
+            overflow-x: auto;
+            max-height: 70vh;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #007bff; 
+            color: white; 
+            position: sticky; 
+            top: 0; 
+            z-index: 1;
+        }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        .loading { 
+            text-align: center; 
+            font-style: italic; 
+            color: #666; 
+            padding: 20px;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .status-done { background-color: #d4edda; color: #155724; }
+        .status-pending { background-color: #fff3cd; color: #856404; }
+        .status-none { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Tra Cứu Danh Sách Cài Đặt eTax Mobile</h2>
+    <input type="text" id="searchInput" placeholder="Nhập tên người nộp thuế, mã số thuế hoặc thôn/xã để tìm kiếm nhanh..." onkeyup="searchTable()">
+    
+    <div id="loading" class="loading">Đang tự động tải dữ liệu từ file Excel, vui lòng đợi...</div>
+    
+    <div class="table-container">
+        <table id="dataTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Mã Số Thuế</th>
+                    <th>Tên Người Nộp Thuế</th>
+                    <th>Địa Chỉ</th>
+                    <th>Thôn/Tổ</th>
+                    <th>Tình Trạng Cài Đặt</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Tên file Excel cần để cùng thư mục với file index.html trên server
+    const fileName = "DS hộ gia đình cài đặt etax (1).xls";
+
+    fetch(fileName)
+        .then(response => {
+            if (!response.ok) throw new Error("Không tìm thấy file Excel.");
+            return response.arrayBuffer();
+        })
+        .then(data => {
+            const workbook = XLSX.read(data, {type: 'array'});
+            
+            // Đọc sheet đầu tiên ("DANH SACH Cài EtaxMobile")
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Chuyển đổi sang mảng. range: 8 để bỏ qua 8 dòng tiêu đề phía trên của file mẫu
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1, range: 8, defval: ""});
+            
+            populateTable(jsonData);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dataTable').style.display = 'table';
+        })
+        .catch(error => {
+            document.getElementById('loading').innerHTML = `<span style="color:red;">Lỗi: ${error.message} <br>Hãy đảm bảo file <b>${fileName}</b> đã được tải lên server nằm cùng thư mục với file HTML này.</span>`;
+        });
+
+    function populateTable(data) {
+        const tbody = document.getElementById('tableBody');
+        
+        data.forEach(row => {
+            // Kiểm tra xem dòng có tên người nộp thuế hợp lệ không (cột C / index 2)
+            if (row[2] && row[2].toString().trim() !== "") {
+                const tr = document.createElement('tr');
+                
+                // Trích xuất các tình trạng (Cột H, I, J tương ứng index 7, 8, 9)
+                let tinhTrang = row[7] || row[8] || row[9] || "Chưa xác định";
+                let statusClass = "status-none";
+                
+                if (tinhTrang.includes("liên kết với ngân hàng")) {
+                    statusClass = "status-done";
+                } else if (tinhTrang.includes("Chưa liên kết")) {
+                    statusClass = "status-pending";
+                }
+
+                // Dữ liệu hiển thị
+                const cols = [
+                    row[0], // STT
+                    row[1], // MST
+                    row[2], // Tên NNT
+                    row[4], // Địa chỉ
+                    row[5], // Thôn
+                ];
+                
+                cols.forEach(text => {
+                    const td = document.createElement('td');
+                    td.innerText = text;
+                    tr.appendChild(td);
+                });
+
+                // Cột tình trạng cài đặt (định dạng màu)
+                const tdStatus = document.createElement('td');
+                tdStatus.innerHTML = `<span class="status-badge ${statusClass}">${tinhTrang}</span>`;
+                tr.appendChild(tdStatus);
+
+                tbody.appendChild(tr);
+            }
+        });
+    }
+
+    function searchTable() {
+        const input = document.getElementById("searchInput");
+        const filter = input.value.toUpperCase();
+        const table = document.getElementById("dataTable");
+        const tr = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < tr.length; i++) {
+            let visible = false;
+            const tds = tr[i].getElementsByTagName("td");
+            // Duyệt qua các cột MST, Tên NNT và Thôn để tìm kiếm
+            for (let j = 1; j < tds.length - 1; j++) {
+                if (tds[j]) {
+                    const txtValue = tds[j].textContent || tds[j].innerText;
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        visible = true;
+                        break;
+                    }
+                }
+            }
+            tr[i].style.display = visible ? "" : "none";
+        }
+    }
+</script>
+
+</body>
+</html>
