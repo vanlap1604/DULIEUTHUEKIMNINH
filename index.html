@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Danh Sách Cài Đặt eTax Mobile</title>
-    <!-- Thư viện SheetJS để đọc file Excel trực tiếp trên trình duyệt -->
+    <title>Danh Sách Mã Số Thuế</title>
+    <!-- Thư viện SheetJS để đọc file Excel trực tiếp -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { 
@@ -35,7 +35,7 @@
         }
         .table-container {
             overflow-x: auto;
-            max-height: 70vh;
+            max-height: 75vh;
         }
         table { 
             width: 100%; 
@@ -62,22 +62,13 @@
             color: #666; 
             padding: 20px;
         }
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: bold;
-        }
-        .status-done { background-color: #d4edda; color: #155724; }
-        .status-pending { background-color: #fff3cd; color: #856404; }
-        .status-none { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Tra Cứu Danh Sách Cài Đặt eTax Mobile</h2>
-    <input type="text" id="searchInput" placeholder="Nhập tên người nộp thuế, mã số thuế hoặc thôn/xã để tìm kiếm nhanh..." onkeyup="searchTable()">
+    <h2>Tra Cứu Danh Sách Mã Số Thuế</h2>
+    <input type="text" id="searchInput" placeholder="Nhập tên người nộp thuế, mã số thuế, mã phi nông nghiệp hoặc thôn/xã để tìm kiếm..." onkeyup="searchTable()">
     
     <div id="loading" class="loading">Đang tự động tải dữ liệu từ file Excel, vui lòng đợi...</div>
     
@@ -88,9 +79,10 @@
                     <th>STT</th>
                     <th>Mã Số Thuế</th>
                     <th>Tên Người Nộp Thuế</th>
-                    <th>Địa Chỉ</th>
-                    <th>Thôn/Tổ</th>
-                    <th>Tình Trạng Cài Đặt</th>
+                    <th>Mã Phi Nông Nghiệp</th>
+                    <th>Thôn/Tổ Cũ</th>
+                    <th>Thôn Mới</th>
+                    <th>Phường/Xã</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
@@ -100,7 +92,7 @@
 </div>
 
 <script>
-    // Tên file Excel cần để cùng thư mục với file index.html trên server
+    // Cập nhật đúng tên file mới
     const fileName = "DSmasothue.xls";
 
     fetch(fileName)
@@ -111,12 +103,12 @@
         .then(data => {
             const workbook = XLSX.read(data, {type: 'array'});
             
-            // Đọc sheet đầu tiên ("DANH SACH Cài EtaxMobile")
+            // Lấy sheet đầu tiên
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // Chuyển đổi sang mảng. range: 8 để bỏ qua 8 dòng tiêu đề phía trên của file mẫu
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1, range: 8, defval: ""});
+            // range: 3 để bỏ qua 3 dòng đầu (dòng tiêu đề chính, dòng trống, và dòng đánh số (1),(2)...)
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1, range: 3, defval: ""});
             
             populateTable(jsonData);
             document.getElementById('loading').style.display = 'none';
@@ -130,27 +122,19 @@
         const tbody = document.getElementById('tableBody');
         
         data.forEach(row => {
-            // Kiểm tra xem dòng có tên người nộp thuế hợp lệ không (cột C / index 2)
+            // Kiểm tra xem dòng có Tên Người Nộp Thuế hợp lệ không (cột C / index 2)
             if (row[2] && row[2].toString().trim() !== "") {
                 const tr = document.createElement('tr');
                 
-                // Trích xuất các tình trạng (Cột H, I, J tương ứng index 7, 8, 9)
-                let tinhTrang = row[7] || row[8] || row[9] || "Chưa xác định";
-                let statusClass = "status-none";
-                
-                if (tinhTrang.includes("liên kết với ngân hàng")) {
-                    statusClass = "status-done";
-                } else if (tinhTrang.includes("Chưa liên kết")) {
-                    statusClass = "status-pending";
-                }
-
-                // Dữ liệu hiển thị
+                // Trích xuất đúng 7 trường dữ liệu theo thứ tự
                 const cols = [
                     row[0], // STT
-                    row[1], // MST
-                    row[2], // Tên NNT
-                    row[4], // Địa chỉ
-                    row[5], // Thôn
+                    row[1], // MÃ SỐ THUẾ
+                    row[2], // TÊN NGƯỜI NỘP THUẾ
+                    row[3], // MÃ PHI NÔNG NGHIỆP
+                    row[4], // THÔN/TỔ CŨ
+                    row[5], // THÔN MỚI
+                    row[6]  // PHƯỜNG/XÃ
                 ];
                 
                 cols.forEach(text => {
@@ -158,11 +142,6 @@
                     td.innerText = text;
                     tr.appendChild(td);
                 });
-
-                // Cột tình trạng cài đặt (định dạng màu)
-                const tdStatus = document.createElement('td');
-                tdStatus.innerHTML = `<span class="status-badge ${statusClass}">${tinhTrang}</span>`;
-                tr.appendChild(tdStatus);
 
                 tbody.appendChild(tr);
             }
@@ -178,8 +157,8 @@
         for (let i = 1; i < tr.length; i++) {
             let visible = false;
             const tds = tr[i].getElementsByTagName("td");
-            // Duyệt qua các cột MST, Tên NNT và Thôn để tìm kiếm
-            for (let j = 1; j < tds.length - 1; j++) {
+            // Duyệt qua tất cả các cột của dòng đó để tìm kiếm (trừ STT)
+            for (let j = 1; j < tds.length; j++) {
                 if (tds[j]) {
                     const txtValue = tds[j].textContent || tds[j].innerText;
                     if (txtValue.toUpperCase().indexOf(filter) > -1) {
