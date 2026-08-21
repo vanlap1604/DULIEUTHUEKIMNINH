@@ -68,7 +68,7 @@
 
 <div class="container">
     <h2>Tra Cứu Danh Sách Mã Số Thuế</h2>
-    <input type="text" id="searchInput" placeholder="Nhập tên người nộp thuế, mã số thuế, mã phi nông nghiệp hoặc thôn/xã để tìm kiếm..." onkeyup="searchTable()">
+    <input type="text" id="searchInput" placeholder="Nhập tên, mã số thuế, mã PNN hoặc thôn/xã để tìm kiếm..." onkeyup="searchTable()">
     
     <div id="loading" class="loading">Đang tự động tải dữ liệu từ file Excel, vui lòng đợi...</div>
     
@@ -92,7 +92,7 @@
 </div>
 
 <script>
-    // Cập nhật đúng tên file mới
+    // Tên file của bạn
     const fileName = "DSmasothue.xls";
 
     fetch(fileName)
@@ -102,44 +102,43 @@
         })
         .then(data => {
             const workbook = XLSX.read(data, {type: 'array'});
-            
-            // Lấy sheet đầu tiên
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // range: 3 để bỏ qua 3 dòng đầu (dòng tiêu đề chính, dòng trống, và dòng đánh số (1),(2)...)
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1, range: 3, defval: ""});
+            // ĐIỂM SỬA LỖI: Sử dụng header: "A" để map chính xác dữ liệu vào các cột A,B,C,D... của Excel
+            // tránh tuyệt đối tình trạng cột trống bị dồn sang trái.
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: "A", range: 3, defval: ""});
             
             populateTable(jsonData);
             document.getElementById('loading').style.display = 'none';
             document.getElementById('dataTable').style.display = 'table';
         })
         .catch(error => {
-            document.getElementById('loading').innerHTML = `<span style="color:red;">Lỗi: ${error.message} <br>Hãy đảm bảo file <b>${fileName}</b> đã được tải lên server nằm cùng thư mục với file HTML này.</span>`;
+            document.getElementById('loading').innerHTML = `<span style="color:red;">Lỗi: ${error.message} <br>Hãy đảm bảo file <b>${fileName}</b> đã được tải lên server.</span>`;
         });
 
     function populateTable(data) {
         const tbody = document.getElementById('tableBody');
         
         data.forEach(row => {
-            // Kiểm tra xem dòng có Tên Người Nộp Thuế hợp lệ không (cột C / index 2)
-            if (row[2] && row[2].toString().trim() !== "") {
+            // Kiểm tra Cột C (Tên Người Nộp Thuế) có dữ liệu thì mới hiển thị dòng
+            if (row["C"] && row["C"].toString().trim() !== "") {
                 const tr = document.createElement('tr');
                 
-                // Trích xuất đúng 7 trường dữ liệu theo thứ tự
+                // Lấy đúng theo tọa độ cột trong Excel
                 const cols = [
-                    row[0], // STT
-                    row[1], // MÃ SỐ THUẾ
-                    row[2], // TÊN NGƯỜI NỘP THUẾ
-                    row[3], // MÃ PHI NÔNG NGHIỆP
-                    row[4], // THÔN/TỔ CŨ
-                    row[5], // THÔN MỚI
-                    row[6]  // PHƯỜNG/XÃ
+                    row["A"], // STT
+                    row["B"], // MÃ SỐ THUẾ
+                    row["C"], // TÊN NGƯỜI NỘP THUẾ
+                    row["D"], // MÃ PHI NÔNG NGHIỆP
+                    row["E"], // THÔN/TỔ CŨ
+                    row["F"], // THÔN MỚI
+                    row["G"]  // PHƯỜNG/XÃ
                 ];
                 
                 cols.forEach(text => {
                     const td = document.createElement('td');
-                    td.innerText = text;
+                    td.innerText = (text !== undefined && text !== null) ? text : "";
                     tr.appendChild(td);
                 });
 
@@ -157,7 +156,7 @@
         for (let i = 1; i < tr.length; i++) {
             let visible = false;
             const tds = tr[i].getElementsByTagName("td");
-            // Duyệt qua tất cả các cột của dòng đó để tìm kiếm (trừ STT)
+            // Duyệt qua tất cả các cột để tìm kiếm (trừ STT)
             for (let j = 1; j < tds.length; j++) {
                 if (tds[j]) {
                     const txtValue = tds[j].textContent || tds[j].innerText;
